@@ -1,6 +1,7 @@
 local IsValid = IsValid
 local net = net
 local allowKillMoves = CreateLambdaConvar( "lambdaplayers_lambda_allowbsmodkillmoves", 1, true, false, false, "If Lambda Players are allowed to execute kill moves from BSMod on their enemies.", 0, 1, { type = "Bool", name = "Allow BSMod KillMoves", category = "Combat" } )
+local dontAttackKillMoveables = CreateLambdaConvar( "lambdaplayers_lambda_dontattackbsmodkillmoveables", 1, true, false, false, "If Lambda Players shouldn't attack with their weapon at a target that can be easily killmoved.", 0, 1, { type = "Bool", name = "Don't Attack BSMod KillMoveables", category = "Combat" } )
 
 if ( CLIENT ) then
 
@@ -479,7 +480,7 @@ if ( SERVER ) then
 
             if !self.inKillMove and allowKillMoves:GetBool() and ( enemy.killMovable or killMoveAlways:GetBool() or killMoveBehind:GetBool() and IsBehindTarget( self, enemy ) and self:CanSee( enemy ) ) and ( !enemy:IsNPC() and !enemy:IsNextBot() or killMoveNPCs:GetBool() ) and ( !enemy:IsPlayer() or !enemy:HasGodMode() and killMovePlayers:GetBool() ) then
                 local isApproachable = ( enemy.IsLambdaPlayer and ( enemy:GetState() != "Combat" or enemy:GetEnemy() != self ) or enemy:IsNPC() and enemy.GetEnemy and enemy:GetEnemy() != self )
-                if isApproachable then
+                if isApproachable and dontAttackKillMoveables:GetBool() then
                     self.l_BSMod_PrevAttackDistance = self.l_CombatAttackRange
                     self.l_CombatAttackRange = 0
                 end
