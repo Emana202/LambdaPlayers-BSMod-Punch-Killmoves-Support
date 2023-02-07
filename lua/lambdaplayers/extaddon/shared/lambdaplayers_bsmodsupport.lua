@@ -1,7 +1,10 @@
+if !file.Exists( "autorun/bsmod_killmove.lua", "LUA" ) then return end
+
+local allowKillMoves = CreateLambdaConvar( "lambdaplayers_bsmod_enablekillmoves", 1, true, false, false, "If Lambda Players are allowed to execute kill moves from BSMod on their enemies.", 0, 1, { type = "Bool", name = "Enable KillMoves", category = "BSMod KillMoves" } )
+local dontAttackKillMoveables = CreateLambdaConvar( "lambdaplayers_bsmod_dontattackkillmoveables", 1, true, false, false, "If Lambda Players shouldn't attack with their weapon at a target that can be easily killmoved.", 0, 1, { type = "Bool", name = "Don't Attack KillMoveables", category = "BSMod KillMoves" } )
+
 local IsValid = IsValid
 local net = net
-local allowKillMoves = CreateLambdaConvar( "lambdaplayers_lambda_allowbsmodkillmoves", 1, true, false, false, "If Lambda Players are allowed to execute kill moves from BSMod on their enemies.", 0, 1, { type = "Bool", name = "Allow BSMod KillMoves", category = "Combat" } )
-local dontAttackKillMoveables = CreateLambdaConvar( "lambdaplayers_lambda_dontattackbsmodkillmoveables", 1, true, false, false, "If Lambda Players shouldn't attack with their weapon at a target that can be easily killmoved.", 0, 1, { type = "Bool", name = "Don't Attack BSMod KillMoveables", category = "Combat" } )
 
 if ( CLIENT ) then
 
@@ -420,23 +423,11 @@ if ( SERVER ) then
         end, true )
     end
 
-    local plyMeta = FindMetaTable( "Player" )
-    plyMeta.KillMove = LambdaKillMove
-
-    local function SetEyeAngles( self, angles )
+    local function LambdaSetEyeAngles( self, angles )
         angles.x = 0
         angles.z = 0
         self:SetAngles( angles )
     end
-
-    hook.Add( "LambdaOnInitialize", "LambdaBSMod_OnInitialize", function( self )
-        self.l_NextKillMoveCheck = CurTime() + 0.1
-        self.l_BSMod_PrevKeepDistance = nil
-
-        self.KillMove = LambdaKillMove
-        self.DoKMEffects = plyMeta.DoKMEffects
-        self.SetEyeAngles = SetEyeAngles
-    end )
 
     local function IsBehindTarget( self, target )
         local vec = ( self:GetPos() - target:GetPos() ):GetNormal():Angle().y
@@ -460,7 +451,19 @@ if ( SERVER ) then
         return ( angleAround > 135 and angleAround <= 225 )
     end
 
-    hook.Add( "LambdaOnThink", "LambdaBSMod_OnThink", function( self, wepent )
+    local plyMeta = FindMetaTable( "Player" )
+    plyMeta.KillMove = LambdaKillMove
+
+    local function OnInitialize( self )
+        self.l_NextKillMoveCheck = CurTime() + 0.1
+        self.l_BSMod_PrevKeepDistance = nil
+
+        self.KillMove = LambdaKillMove
+        self.DoKMEffects = plyMeta.DoKMEffects
+        self.SetEyeAngles = LambdaSetEyeAngles
+    end
+
+    local function OnThink( self, wepent )
         if self.l_BSMod_PrevKeepDistance then
             self.l_CombatKeepDistance = self.l_BSMod_PrevKeepDistance
             self.l_BSMod_PrevKeepDistance = nil
@@ -468,6 +471,12 @@ if ( SERVER ) then
         if self.l_BSMod_PrevAttackDistance then
             self.l_CombatAttackRange = self.l_BSMod_PrevAttackDistance
             self.l_BSMod_PrevAttackDistance = nil
+        end
+
+        if self.inKillMove and IsValid( self.kmModel ) then
+            local rootPos = self.kmModel:GetBonePosition( 0 )
+            local modelPos = ( rootPos - self:GetUp() * ( self:WorldSpaceCenter():Distance( self:GetPos() ) ) )
+            self:SetPos( modelPos )
         end
 
         local enemy = self:GetEnemy()
@@ -499,10 +508,14 @@ if ( SERVER ) then
         if CurTime() > self.l_NextKillMoveCheck then
             self.l_NextKillMoveCheck = CurTime() + Rand( 0.1, 0.33 )
         end
-    end )
+    end
 
-    hook.Add( "LambdaCanTarget", "LambdaBSMod_OnCanTarget", function( self, target )
+    local function OnCanTarget( self, target )
         if target.inKillMove then return true end
-    end )
+    end
+
+    hook.Add( "LambdaOnInitialize", "LambdaBSMod_OnInitialize", OnInitialize )
+    hook.Add( "LambdaOnThink", "LambdaBSMod_OnThink", OnThink )
+    hook.Add( "LambdaCanTarget", "LambdaBSMod_OnCanTarget", OnCanTarget )
 
 end

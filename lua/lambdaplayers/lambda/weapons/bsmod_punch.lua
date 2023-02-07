@@ -1,3 +1,5 @@
+if !file.Exists( "weapons/weapon_bsmod_punch.lua", "LUA" ) then return end
+
 local IsValid = IsValid
 local CurTime = CurTime
 local random = math.random
