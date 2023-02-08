@@ -1,6 +1,8 @@
 if !file.Exists( "autorun/bsmod_killmove.lua", "LUA" ) then return end
 
 local allowKillMoves = CreateLambdaConvar( "lambdaplayers_bsmod_enablekillmoves", 1, true, false, false, "If Lambda Players are allowed to execute kill moves from BSMod on their enemies.", 0, 1, { type = "Bool", name = "Enable KillMoves", category = "BSMod KillMoves" } )
+local killMovePlayers = CreateLambdaConvar( "lambdaplayers_bsmod_killmoveplayers", 1, true, false, false, "If Lambda Players are allowed to execute kill moves on real players.", 0, 1, { type = "Bool", name = "KillMoves Players", category = "BSMod KillMoves" } )
+local killMoveNPCs = CreateLambdaConvar( "lambdaplayers_bsmod_killmovenpcs", 1, true, false, false, "If Lambda Players are allowed to execute kill moves on NPCs.", 0, 1, { type = "Bool", name = "KillMove NPCs", category = "BSMod KillMoves" } )
 local dontAttackKillMoveables = CreateLambdaConvar( "lambdaplayers_bsmod_dontattackkillmoveables", 1, true, false, false, "If Lambda Players shouldn't attack with their weapon at a target that can be easily killmoved.", 0, 1, { type = "Bool", name = "Don't Attack KillMoveables", category = "BSMod KillMoves" } )
 
 local IsValid = IsValid
@@ -35,8 +37,6 @@ if ( SERVER ) then
     local ents_Create = ents.Create
     local spawnHealthVials = GetConVar( "bsmod_killmove_spawn_healthvial" )
     local spawnHealthKits = GetConVar( "bsmod_killmove_spawn_healthkit" )
-    local killMoveNPCs = GetConVar( "bsmod_killmove_enable_npcs" )
-    local killMovePlayers = GetConVar( "bsmod_killmove_enable_players" )
     local killMoveMinHP = GetConVar( "bsmod_killmove_minhealth" )
     local killMoveAlways = GetConVar( "bsmod_killmove_anytime" )
     local killMoveBehind = GetConVar( "bsmod_killmove_anytime_behind" )
@@ -487,7 +487,7 @@ if ( SERVER ) then
                 return
             end
 
-            if !self.inKillMove and allowKillMoves:GetBool() and ( enemy.killMovable or killMoveAlways:GetBool() or killMoveBehind:GetBool() and IsBehindTarget( self, enemy ) and self:CanSee( enemy ) ) and ( !enemy:IsNPC() and !enemy:IsNextBot() or killMoveNPCs:GetBool() ) and ( !enemy:IsPlayer() or !enemy:HasGodMode() and killMovePlayers:GetBool() ) then
+            if !self.inKillMove and allowKillMoves:GetBool() and ( enemy.killMovable or killMoveAlways:GetBool() or killMoveBehind:GetBool() and IsBehindTarget( self, enemy ) and self:CanSee( enemy ) ) and ( !enemy:IsNPC() and ( !enemy:IsNextBot() or enemy.IsLambdaPlayer ) or killMoveNPCs:GetBool() ) and ( !enemy:IsPlayer() or !enemy:HasGodMode() and killMovePlayers:GetBool() ) then
                 local isApproachable = ( enemy.IsLambdaPlayer and ( enemy:GetState() != "Combat" or enemy:GetEnemy() != self ) or enemy:IsNPC() and enemy.GetEnemy and enemy:GetEnemy() != self )
                 if isApproachable and dontAttackKillMoveables:GetBool() then
                     self.l_BSMod_PrevAttackDistance = self.l_CombatAttackRange
