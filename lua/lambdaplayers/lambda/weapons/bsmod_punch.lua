@@ -33,17 +33,17 @@ table.Merge( _LAMBDAPLAYERSWEAPONS, {
         keepdistance = 12,
         attackrange = 70,
 
-        OnEquip = function( self, wepent )
+        OnDeploy = function( self, wepent )
             self.l_BSModBlockTime = nil
             self:SimpleTimer( 0.1, function() wepent:EmitSound( "player/fists/fists_crackl.wav" ) end )
             self:SimpleTimer( 0.5, function() wepent:EmitSound( "player/fists/fists_crackr.wav" ) end )
         end,
 
-        OnUnequip = function( self, wepent )
+        OnHolster = function( self, wepent )
             self.l_BSModBlockTime = nil
         end,
 
-        OnDamage = function( self, wepent, dmginfo )
+        OnTakeDamage = function( self, wepent, dmginfo )
             if !self.l_BSModBlockTime and random( 1, 10 ) == 1 and !dmginfo:IsDamageType( DMG_FALL + DMG_BURN + DMG_DROWN + DMG_POISON + DMG_SLOWBURN + DMG_DROWNRECOVER ) then 
                 self.l_BSModBlockTime = CurTime() + Rand( 0.2, 1.0 )
             end
@@ -59,8 +59,8 @@ table.Merge( _LAMBDAPLAYERSWEAPONS, {
             end
         end,
 
-        OnThink = function( self, wepent )
-            if self.l_BSModBlockTime then 
+        OnThink = function( self, wepent, isdead )
+            if !isdead and self.l_BSModBlockTime then 
                 if CurTime() <= self.l_BSModBlockTime then
                     self:AddGesture( ACT_HL2MP_FIST_BLOCK )
                 else
@@ -70,7 +70,7 @@ table.Merge( _LAMBDAPLAYERSWEAPONS, {
             end
         end,
 
-        callback = function( self, wepent, target )
+        OnAttack = function( self, wepent, target )
             if self.l_BSModBlockTime then return true end
             self.l_WeaponUseCooldown = CurTime() + Rand( 0.175, 0.35 )
 
