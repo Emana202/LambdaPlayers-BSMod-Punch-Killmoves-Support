@@ -6,19 +6,44 @@ local random = math.random
 local Rand = math.Rand
 local ceil = math.ceil
 local EffectData = EffectData
+local IsFirstTimePredicted = IsFirstTimePredicted
 local ScreenShake = util.ScreenShake
 local util_Effect = util.Effect
 local punchDmgMin = GetConVar( "bsmod_punch_damage_min" )
 local punchDmgMax = GetConVar( "bsmod_punch_damage_max" )
 local punchEffect = GetConVar( "bsmod_punch_effect" )
 local blockResist = GetConVar( "bsmod_punch_blocking_resistance" )
+
+local hitVel = vector_origin
 local meleeBulletTbl = {
     Num = 1,
     Spread = vector_origin,
     Tracer = 0,
     Force = 20,
     HullSize = 1,
-    Distance = 75
+    Distance = 75,
+    Callback = function( attacker, tr, dmginfo )
+        if IsFirstTimePredicted() and punchEffect:GetBool() then
+            local fx = EffectData()
+            fx:SetStart( tr.HitPos )
+            fx:SetOrigin( tr.HitPos )
+            fx:SetNormal( tr.HitNormal )
+            util_Effect( "kick_groundhit", fx )
+        end
+
+        local trEnt = tr.Entity
+        if trEnt:IsNPC() or trEnt:IsPlayer() then
+            hitVel.x = tr.Normal.x
+            hitVel.y = tr.Normal.y
+            tr.Entity:SetVelocity( hitVel * 250 )
+
+            dmginfo:GetInflictor():EmitSound( "player/fists/fists_hit0" .. random( 3 ) .. ".wav", 70 )
+        else
+            dmginfo:GetInflictor():EmitSound( "player/fists/fists_miss0" .. random( 3 ) .. ".wav", 70 )
+        end
+
+        ScreenShake( tr.HitPos, 0.5, 10, 0.5, 250 )
+    end
 }
 
 table.Merge( _LAMBDAPLAYERSWEAPONS, {
@@ -35,8 +60,8 @@ table.Merge( _LAMBDAPLAYERSWEAPONS, {
 
         OnDeploy = function( self, wepent )
             self.l_BSModBlockTime = nil
-            self:SimpleTimer( 0.1, function() wepent:EmitSound( "player/fists/fists_crackl.wav" ) end )
-            self:SimpleTimer( 0.5, function() wepent:EmitSound( "player/fists/fists_crackr.wav" ) end )
+            self:SimpleWeaponTimer( 0.1, function() wepent:EmitSound( "player/fists/fists_crackl.wav" ) end )
+            self:SimpleWeaponTimer( 0.5, function() wepent:EmitSound( "player/fists/fists_crackr.wav" ) end )
         end,
 
         OnHolster = function( self, wepent )
@@ -44,14 +69,14 @@ table.Merge( _LAMBDAPLAYERSWEAPONS, {
         end,
 
         OnTakeDamage = function( self, wepent, dmginfo )
-            if !self.l_BSModBlockTime and random( 1, 10 ) == 1 and !dmginfo:IsDamageType( DMG_FALL + DMG_BURN + DMG_DROWN + DMG_POISON + DMG_SLOWBURN + DMG_DROWNRECOVER ) then 
+            if !self.l_BSModBlockTime and random( 10 ) == 1 and !dmginfo:IsDamageType( DMG_FALL + DMG_BURN + DMG_DROWN + DMG_POISON + DMG_SLOWBURN + DMG_DROWNRECOVER ) then 
                 self.l_BSModBlockTime = CurTime() + Rand( 0.2, 1.0 )
             end
 
             if self.l_BSModBlockTime then
                 local dmg = dmginfo:GetDamage()
                 dmginfo:SetDamage( dmg - ceil( ( dmg / 100 ) * blockResist:GetInt() ) )
-                
+
                 self:SimpleTimer( 0, function() 
                     if !self.killMovable then return end
                     self:SetKillMovable( false ) 
@@ -74,40 +99,22 @@ table.Merge( _LAMBDAPLAYERSWEAPONS, {
             if self.l_BSModBlockTime then return true end
             self.l_WeaponUseCooldown = CurTime() + Rand( 0.175, 0.35 )
 
-            wepent:EmitSound( "player/fists/fists_fire0" .. random( 1, 3 ) .. ".wav", 100, 100, 1, CHAN_AUTO )
+            wepent:EmitSound( "player/fists/fists_fire0" .. random( 3 ) .. ".wav", 70 )
 
             self:RemoveGesture( ACT_HL2MP_GESTURE_RANGE_ATTACK_FIST )
-            self:AddGesture( ACT_HL2MP_GESTURE_RANGE_ATTACK_FIST, true )
+            self:AddGesture( ACT_HL2MP_GESTURE_RANGE_ATTACK_FIST )
 
-            self:SimpleTimer( 0.1, function()
-                local aimDir = ( IsValid( target ) and ( target:WorldSpaceCenter() - self:GetAttachmentPoint( "eyes" ).Pos ):GetNormalized() or self:GetForward() )
+            self:SimpleWeaponTimer( 0.1, function()
+                local srcPos = self:GetAttachmentPoint( "eyes" ).Pos
+                local aimDir = ( IsValid( target ) and ( target:WorldSpaceCenter() - srcPos ):GetNormalized() or self:GetForward() )
 
                 meleeBulletTbl.Attacker = self
                 meleeBulletTbl.IgnoreEntity = self
                 meleeBulletTbl.Damage = random( punchDmgMin:GetInt(), punchDmgMax:GetInt() )
-                meleeBulletTbl.Src = self:GetAttachmentPoint( "eyes" ).Pos
+                meleeBulletTbl.Src = srcPos
                 meleeBulletTbl.Dir = aimDir
-                meleeBulletTbl.Callback = function( ply, tr, damageinfo )
-                    if IsFirstTimePredicted() and punchEffect:GetBool() then
-                        local fx = EffectData()
-                        fx:SetStart( tr.HitPos )
-                        fx:SetOrigin( tr.HitPos )
-                        fx:SetNormal( tr.HitNormal )
-                        util_Effect( "kick_groundhit", fx )
-                    end
 
-                    local trEnt = tr.Entity
-                    if trEnt:IsNPC() or trEnt:IsPlayer() then
-                        tr.Entity:SetVelocity( Vector( aimDir.x, aimDir.y, 0 ) * 250 )
-                        wepent:EmitSound( "player/fists/fists_hit0" .. random( 1, 3 ) .. ".wav", 100, 100, 1, CHAN_AUTO )
-                    else
-                        wepent:EmitSound( "player/fists/fists_miss0" .. random( 1, 3 ) .. ".wav", 100, 100, 1, CHAN_AUTO )
-                    end
-
-                    ScreenShake( tr.HitPos, 0.5, 10, 0.5, 250 )
-                end
-                
-                wepent:FireBullets( meleeBulletTbl, false ) 
+                wepent:FireBullets( meleeBulletTbl ) 
             end )
 
             return true

@@ -473,10 +473,15 @@ if ( SERVER ) then
             self.l_BSMod_PrevAttackDistance = nil
         end
 
-        if self.inKillMove and IsValid( self.kmModel ) then
-            local rootPos = self.kmModel:GetBonePosition( 0 )
-            local modelPos = ( rootPos - self:GetUp() * ( self:WorldSpaceCenter():Distance( self:GetPos() ) ) )
-            self:SetPos( modelPos )
+        if self.inKillMove then
+            self.loco:SetVelocity( vector_origin )
+            self:WaitWhileMoving( Rand( 0.1, 0.33 ) )
+
+            if IsValid( self.kmModel ) then
+                local rootPos = self.kmModel:GetBonePosition( 0 )
+                local modelPos = ( rootPos - self:GetUp() * ( self:WorldSpaceCenter():Distance( self:GetPos() ) ) )
+                self:SetPos( modelPos )
+            end
         end
 
         local enemy = self:GetEnemy()
@@ -514,8 +519,13 @@ if ( SERVER ) then
         if target.inKillMove then return true end
     end
 
+    local function OnCanSwitchWeapon( self, name, data )
+        if self.inKillMove then return true end
+    end
+
     hook.Add( "LambdaOnInitialize", "LambdaBSMod_OnInitialize", OnInitialize )
     hook.Add( "LambdaOnThink", "LambdaBSMod_OnThink", OnThink )
     hook.Add( "LambdaCanTarget", "LambdaBSMod_OnCanTarget", OnCanTarget )
+    hook.Add( "LambdaCanSwitchWeapon", "LambdaBSMod_OnCanSwitchWeapon", OnCanSwitchWeapon )
 
 end
