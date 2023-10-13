@@ -55,7 +55,7 @@ table.Merge( _LAMBDAPLAYERSWEAPONS, {
         killicon = "lambdaplayers/killicons/icon_fists",
         ismelee = true,
         nodraw = true,
-        keepdistance = 12,
+        keepdistance = 5,
         attackrange = 70,
 
         OnDeploy = function( self, wepent )

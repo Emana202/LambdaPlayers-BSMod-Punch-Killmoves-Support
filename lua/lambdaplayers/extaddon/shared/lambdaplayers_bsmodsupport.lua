@@ -44,7 +44,7 @@ if ( SERVER ) then
     local function LambdaKillMove( self, target, animName, plyKMModel, targetKMModel, plyKMPosition, plyKMAngle, plyKMTime, targetKMTime, moveTarget )
         if plyKMModel == "" or targetKMModel == "" or animName == "" then return end
         if self.inKillMove or self:Health() <= 0 or !IsValid( target ) or target.inKillMove or target == self then return end
-        
+
         --End of return checks
         
         net.Start("debugbsmodcalcview")
@@ -80,6 +80,7 @@ if ( SERVER ) then
             if tempSelf:IsPlayer() then tempSelf:SetEyeAngles( plyKMAngle ) end
         end
             
+        local hiddenChildren = nil
         local prevWeapon = nil
         local prevGodMode = self:HasGodMode()
         local prevMaterial = self:GetMaterial()
@@ -98,9 +99,22 @@ if ( SERVER ) then
             self:ClientSideNoDraw( self, true )
             self:SetNoDraw( true )
 
-            self:ClientSideNoDraw( self.WeaponEnt, true )
-            self.WeaponEnt:SetNoDraw( true )
-            self.WeaponEnt:DrawShadow( false )
+            prevWeapon = self.l_Weapon
+            self:SwitchWeapon( "none" )
+            self:PreventWeaponSwitch( true )
+
+            hiddenChildren = {}
+            for _, child in ipairs( self:GetChildren() ) do
+                if child == self.WeaponEnt or !IsValid( child ) or child:GetNoDraw() then continue end
+
+                local mdl = child:GetModel()
+                if !mdl or mdl == "" then continue end
+
+                self:ClientSideNoDraw( child, true )
+                child:SetRenderMode( RENDERMODE_NONE )
+                child:DrawShadow( false )
+                hiddenChildren[ #hiddenChildren + 1 ] = child
+            end
 
             self:SetCollisionGroup( COLLISION_GROUP_VEHICLE )
             self:GetPhysicsObject():EnableCollisions( false )
@@ -159,7 +173,19 @@ if ( SERVER ) then
         self.kmModel:SetRenderMode( self:GetRenderMode() )
         self.kmModel:SetOwner( self )
 
-        if self:IsPlayer() then 
+        if self.IsLambdaPlayer then
+            for _, child in ipairs( hiddenChildren ) do
+                local fakeChild = ents_Create( "base_anim" )
+                fakeChild:SetModel( child:GetModel() )
+                fakeChild:SetPos( self.kmModel:GetPos() )
+                fakeChild:SetAngles( self.kmModel:GetAngles() )
+                fakeChild:SetOwner( self.kmModel )
+                fakeChild:SetParent( self.kmModel )
+                fakeChild:Spawn()
+                fakeChild:AddEffects( EF_BONEMERGE )
+                self.kmModel:DeleteOnRemove( fakeChild )
+            end
+        elseif self:IsPlayer() then 
             self:Give("weapon_bsmod_killmove")
 
             if IsValid( self:GetActiveWeapon() ) then
@@ -199,6 +225,9 @@ if ( SERVER ) then
         else
             target:SetNoDraw( true )
         end
+        if target.IsLambdaPlayer then
+            target:ClientSideNoDraw( target, true )
+        end
         target:DrawShadow( false )
 
         net.Start("removedecals")
@@ -213,9 +242,28 @@ if ( SERVER ) then
             self:SetVelocity(-self:GetVelocity())
         end
 
-        if target.IsLambdaPlayer and random( 1, 100 ) <= min( 100, target:GetVoiceChance() * 2 ) then
-            local targetLine = ( random( 1, 3 ) == 1 and "death" or "panic" )
-            target:SimpleTimer( Rand( 0.2, 0.8 ), function() target:PlaySoundFile( target:GetVoiceLine( targetLine ), false ) end )
+        local hiddenChildren2
+        if target.IsLambdaPlayer then
+            target:SwitchWeapon( "none" )
+            target:PreventWeaponSwitch( true )
+
+            hiddenChildren2 = {}
+            for _, child in ipairs( target:GetChildren() ) do
+                if child == target.WeaponEnt or !IsValid( child ) or child:GetNoDraw() then continue end
+
+                local mdl = child:GetModel()
+                if !mdl or mdl == "" then continue end
+
+                target:ClientSideNoDraw( child, true )
+                child:SetRenderMode( RENDERMODE_NONE )
+                child:DrawShadow( false )
+                hiddenChildren2[ #hiddenChildren2 + 1 ] = child
+            end
+
+            if random( 1, 100 ) <= min( 100, target:GetVoiceChance() * 2 ) then
+                local targetLine = ( random( 1, 3 ) == 1 and "death" or "panic" )
+                target:SimpleTimer( Rand( 0.2, 0.8 ), function() target:PlaySoundFile( target:GetVoiceLine( targetLine ), false ) end )
+            end
         end
 
         --Now for the targets animation model
@@ -279,7 +327,25 @@ if ( SERVER ) then
         target.kmModel:AddEffects( EF_BONEMERGE )
         target.kmModel:SetParent( target.kmAnim )
 
-        if target.IsLambdaPlayer then target.l_BecomeRagdollEntity = target.kmModel end
+        local fakeChildren
+        if target.IsLambdaPlayer then
+            fakeChildren = {}
+            for _, child in ipairs( hiddenChildren2 ) do
+                local fakeChild = ents_Create( "base_anim" )
+                fakeChild:SetModel( child:GetModel() )
+                fakeChild:SetPos( target.kmModel:GetPos() )
+                fakeChild:SetAngles( target.kmModel:GetAngles() )
+                fakeChild:SetOwner( target.kmModel )
+                fakeChild:SetParent( target.kmModel )
+                fakeChild:Spawn()
+                fakeChild:AddEffects( EF_BONEMERGE )
+                
+                fakeChildren[ #fakeChildren + 1 ] = fakeChild
+                target.kmModel:DeleteOnRemove( fakeChild )
+            end
+
+            target.l_BecomeRagdollEntity = target.kmModel 
+        end
 
         self:DoKMEffects( animName, self.kmModel, target.kmModel )
 
@@ -312,6 +378,12 @@ if ( SERVER ) then
                         ent:SetLocalAngles( angle_zero )
                     end 
 
+                    if fakeChildren then
+                        for _, child in ipairs( fakeChildren ) do
+                            if IsValid( child ) then child:Remove() end
+                        end
+                    end
+
                     target.kmModel:SetNoDraw( true )
                     target.kmModel:RemoveDelay( 2 )
                 end
@@ -330,10 +402,22 @@ if ( SERVER ) then
                         SimpleTimer( 0, function() if target:Health() > 0 then target:Kill() end end)
                     end
 
-                    if target.IsLambdaPlayer then
-                        net.Start( "lambdaplayers_bsmod_ragdollhook" )
-                            net.WriteEntity( target )
-                        net.Broadcast()
+                    if target.IsLambdaPlayer then            
+                        if target:Alive() then
+                            target:ClientSideNoDraw( target, false )
+                            target:PreventWeaponSwitch( false )
+
+                            for _, child in ipairs( hiddenChildren2 ) do
+                                if !IsValid( child ) then continue end
+                                target:ClientSideNoDraw( child, false )
+                                child:SetRenderMode( RENDERMODE_NORMAL )
+                                child:DrawShadow( true )
+                            end
+                        else
+                            net.Start( "lambdaplayers_bsmod_ragdollhook" )
+                                net.WriteEntity( target )
+                            net.Broadcast()
+                        end
                     end
                 elseif target:IsNPC() or target:IsNextBot() then
                     target:SetHealth( 0 )
@@ -359,10 +443,15 @@ if ( SERVER ) then
                     self:ClientSideNoDraw( self, false )
                     self:SetNoDraw( false )
 
-                    local wepNoDraw = self:IsWeaponMarkedNodraw()
-                    self:ClientSideNoDraw( self.WeaponEnt, wepNoDraw )
-                    self.WeaponEnt:SetNoDraw( wepNoDraw )
-                    self.WeaponEnt:DrawShadow( !wepNoDraw )
+                    self:PreventWeaponSwitch( false )
+                    self:SwitchWeapon( prevWeapon )
+
+                    for _, child in ipairs( hiddenChildren ) do
+                        if !IsValid( child ) then continue end
+                        self:ClientSideNoDraw( child, false )
+                        child:SetRenderMode( RENDERMODE_NORMAL )
+                        child:DrawShadow( true )
+                    end
 
                     self:SetCollisionGroup( COLLISION_GROUP_PLAYER )
                     self:GetPhysicsObject():EnableCollisions( true )
@@ -455,9 +544,6 @@ if ( SERVER ) then
     plyMeta.KillMove = LambdaKillMove
 
     local function OnInitialize( self )
-        self.l_NextKillMoveCheck = CurTime() + 0.1
-        self.l_BSMod_PrevKeepDistance = nil
-
         self.KillMove = LambdaKillMove
         self.DoKMEffects = plyMeta.DoKMEffects
         self.SetEyeAngles = LambdaSetEyeAngles
@@ -503,15 +589,11 @@ if ( SERVER ) then
                     self.l_CombatKeepDistance = 0
                 end
 
-                if CurTime() > self.l_NextKillMoveCheck and self:IsInRange( enemy, 100 ) then 
+                if self:IsInRange( enemy, 80 ) then 
                     self:LookTo( enemy:WorldSpaceCenter(), 0.33 )
                     KMCheck( self )
                 end
             end
-        end
-
-        if CurTime() > self.l_NextKillMoveCheck then
-            self.l_NextKillMoveCheck = CurTime() + Rand( 0.1, 0.33 )
         end
     end
 
@@ -519,7 +601,7 @@ if ( SERVER ) then
         if target.inKillMove then return true end
     end
 
-    local function OnCanSwitchWeapon( self, name, data )
+    local function OnCanSwitchWeapon( self )
         if self.inKillMove then return true end
     end
 
@@ -527,5 +609,6 @@ if ( SERVER ) then
     hook.Add( "LambdaOnThink", "LambdaBSMod_OnThink", OnThink )
     hook.Add( "LambdaCanTarget", "LambdaBSMod_OnCanTarget", OnCanTarget )
     hook.Add( "LambdaCanSwitchWeapon", "LambdaBSMod_OnCanSwitchWeapon", OnCanSwitchWeapon )
+    hook.Add( "LambdaFootStep", "LambdaBSMod_OnLambdaFootStep", OnCanSwitchWeapon )
 
 end
