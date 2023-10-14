@@ -389,7 +389,7 @@ if ( SERVER ) then
                 end
                 if IsValid( target.kmAnim ) then target.kmAnim:RemoveDelay(2) end
 
-                if target:IsPlayer() or target.IsLambdaPlayer then
+                if target:IsPlayer() then
                     target:UnLock()
 
                     if target:Health() > 0 then
@@ -401,23 +401,29 @@ if ( SERVER ) then
 
                         SimpleTimer( 0, function() if target:Health() > 0 then target:Kill() end end)
                     end
+                elseif target.IsLambdaPlayer then
+                    target:UnLock()
 
-                    if target.IsLambdaPlayer then            
-                        if target:Alive() then
-                            target:ClientSideNoDraw( target, false )
-                            target:PreventWeaponSwitch( false )
+                    if target:Alive() then
+                        target:ClientSideNoDraw( target, false )
+                        target:PreventWeaponSwitch( false )
 
-                            for _, child in ipairs( hiddenChildren2 ) do
-                                if !IsValid( child ) then continue end
-                                target:ClientSideNoDraw( child, false )
-                                child:SetRenderMode( RENDERMODE_NORMAL )
-                                child:DrawShadow( true )
-                            end
-                        else
-                            net.Start( "lambdaplayers_bsmod_ragdollhook" )
-                                net.WriteEntity( target )
-                            net.Broadcast()
+                        for _, child in ipairs( hiddenChildren2 ) do
+                            if !IsValid( child ) then continue end
+                            target:ClientSideNoDraw( child, false )
+                            child:SetRenderMode( RENDERMODE_NORMAL )
+                            child:DrawShadow( true )
                         end
+
+                        local dmginfo = DamageInfo()
+                        dmginfo:SetAttacker( self )
+                        dmginfo:SetDamageType( DMG_DIRECT )
+                        dmginfo:SetDamage( 999999999999 )
+                        target:LambdaOnKilled( dmginfo )
+                    else
+                        net.Start( "lambdaplayers_bsmod_ragdollhook" )
+                            net.WriteEntity( target )
+                        net.Broadcast()
                     end
                 elseif target:IsNPC() or target:IsNextBot() then
                     target:SetHealth( 0 )
