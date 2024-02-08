@@ -30,8 +30,6 @@ if ( SERVER ) then
 
     local CurTime = CurTime
     local ipairs = ipairs
-    local random = math.random
-    local Rand = math.Rand
     local min = math.min
     local SimpleTimer = timer.Simple
     local ents_Create = ents.Create
@@ -43,7 +41,7 @@ if ( SERVER ) then
 
     local function LambdaKillMove( self, target, animName, plyKMModel, targetKMModel, plyKMPosition, plyKMAngle, plyKMTime, targetKMTime, moveTarget )
         if plyKMModel == "" or targetKMModel == "" or animName == "" then return end
-        if self.inKillMove or self:Health() <= 0 or !IsValid( target ) or target.inKillMove or target == self then return end
+        if self.inKillMove or target == self or self:Health() <= 0 or !IsValid( target ) or target.inKillMove then return end
 
         --End of return checks
         
@@ -64,7 +62,7 @@ if ( SERVER ) then
             tempTarget = target
         end
 
-        if plyKMPosition != nil then
+        if plyKMPosition then
             tempSelf:SetPos( plyKMPosition )
         else
             tempSelf:SetPos( tempTarget:GetPos() + ( tempTarget:GetForward() * 40 ) )
@@ -73,34 +71,32 @@ if ( SERVER ) then
         --Set the player to look at the tempTarget by default
         tempSelf:SetAngles( ( Vector( tempTarget:GetPos().x, tempTarget:GetPos().y, 0 ) - Vector( tempSelf:GetPos().x, tempSelf:GetPos().y, 0 ) ):Angle() )
         if tempSelf:IsPlayer() then tempSelf:SetEyeAngles( ( Vector( tempTarget:GetPos().x, tempTarget:GetPos().y, 0 ) - Vector( tempSelf:GetPos().x, tempSelf:GetPos().y, 0 ) ):Angle() ) end
-        
+
         --Override the default angle if a custom one is set
-        if plyKMAngle != nil then
+        if plyKMAngle then
             tempSelf:SetAngles( plyKMAngle )
             if tempSelf:IsPlayer() then tempSelf:SetEyeAngles( plyKMAngle ) end
         end
             
-        local hiddenChildren = nil
-        local prevWeapon = nil
         local prevGodMode = self:HasGodMode()
         local prevMaterial = self:GetMaterial()
-
+        local prevWeapon = nil
         if self:IsPlayer() and IsValid( self:GetActiveWeapon() ) then
             prevWeapon = self:GetActiveWeapon()
         end
-        
-        if self.killMovable then self:SetKillMovable(false) end
 
+        if self.killMovable then self:SetKillMovable(false) end
         self:Lock()
         self:SetVelocity( -self:GetVelocity() )
         self:DrawShadow( false )
 
+        local hiddenChildren = nil
         if self.IsLambdaPlayer then
             self:ClientSideNoDraw( self, true )
             self:SetNoDraw( true )
 
             prevWeapon = self.l_Weapon
-            self:SwitchWeapon( "none" )
+            self:SwitchWeapon( "none", true )
             self:PreventWeaponSwitch( true )
 
             hiddenChildren = {}
@@ -119,9 +115,9 @@ if ( SERVER ) then
             self:SetCollisionGroup( COLLISION_GROUP_VEHICLE )
             self:GetPhysicsObject():EnableCollisions( false )
 
-            if random( 1, 100 ) <= min( 100, self:GetVoiceChance() * 2 ) then
-                local killerLine = ( random( 1, 2 ) == 1 and "kill" or ( random( 1, 2 ) == 1 and "taunt" or "laugh" ) )
-                self:SimpleTimer( Rand( 0.2, 1.0 ), function() self:PlaySoundFile( self:GetVoiceLine( killerLine ), true ) end )
+            if LambdaRNG( 100 ) <= ( self:GetVoiceChance() * 2 ) then
+                local killerLine = ( LambdaRNG( 2 ) == 1 and "kill" or ( LambdaRNG( 2 ) == 1 and "taunt" or "laugh" ) )
+                self:SimpleTimer( LambdaRNG( 0.2, 1, true ), function() self:PlaySoundFile( self:GetVoiceLine( killerLine ), true ) end )
             end
         else
             self:SetMaterial( "null" )
@@ -244,7 +240,7 @@ if ( SERVER ) then
 
         local hiddenChildren2
         if target.IsLambdaPlayer then
-            target:SwitchWeapon( "none" )
+            target:SwitchWeapon( "none", true )
             target:PreventWeaponSwitch( true )
 
             hiddenChildren2 = {}
@@ -260,9 +256,9 @@ if ( SERVER ) then
                 hiddenChildren2[ #hiddenChildren2 + 1 ] = child
             end
 
-            if random( 1, 100 ) <= min( 100, target:GetVoiceChance() * 2 ) then
-                local targetLine = ( random( 1, 3 ) == 1 and "death" or "panic" )
-                target:SimpleTimer( Rand( 0.2, 0.8 ), function() target:PlaySoundFile( target:GetVoiceLine( targetLine ), false ) end )
+            if LambdaRNG( 100 ) <= ( target:GetVoiceChance() * 2 ) then
+                local targetLine = ( LambdaRNG( 4 ) == 1 and "death" or "panic" )
+                target:SimpleTimer( LambdaRNG( 0.2, 0.8, true ), function() target:PlaySoundFile( target:GetVoiceLine( targetLine ), false ) end )
             end
         end
 
@@ -496,7 +492,7 @@ if ( SERVER ) then
                 local healthToSpawn = 0
                 if self:Health() < self:GetMaxHealth() then
                     if spawnHealthVials:GetBool() and spawnHealthKits:GetBool() then
-                        healthToSpawn = random( 1, 2 )
+                        healthToSpawn = LambdaRNG( 2 )
                     else
                         if spawnHealthVials:GetBool() then
                             healthToSpawn = 1
@@ -567,7 +563,7 @@ if ( SERVER ) then
 
         if self.inKillMove then
             self.loco:SetVelocity( vector_origin )
-            self:WaitWhileMoving( Rand( 0.1, 0.33 ) )
+            self:WaitWhileMoving( LambdaRNG( 0.1, 0.33, true ) )
 
             if IsValid( self.kmModel ) then
                 local rootPos = self.kmModel:GetBonePosition( 0 )
